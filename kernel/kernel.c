@@ -32,7 +32,7 @@ int sys_add(int a, int b)
  *   n      : syscall number
  *   args[] : array of the parameters (4 max)
  */
-int32_t svc_dispatch(uint32_t n, uint32_t args[])
+int32_t svc_dispatch(uint32_t n, uint32_t args[]) // répartir les appels systèmes (genre read, write,..)
 {
 	switch (n)
 	{
@@ -162,9 +162,9 @@ int32_t sys_os_start()
  *      |   CONTROL  | <- sp
  *      +------------+
  */
-int32_t sys_task_new(TaskCode func, uint32_t stacksize)
+int32_t sys_task_new(TaskCode func, uint32_t stacksize) // create new tasks
 {
-	// get a stack with size multiple of 8 bytes
+	// get a stack with size multiple of 8 bytes (cf. page 13)
 	uint32_t size = stacksize > 96 ? 8 * (((stacksize - 1) / 8) + 1) : 96;
 
 	Task *t = (Task *)malloc(sizeof(Task) + size);

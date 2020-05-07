@@ -1,4 +1,3 @@
-
 #include "oslib.h"
 //#include "include/board.h"
 
@@ -7,7 +6,9 @@
 int test_add(int a, int b)
 {
     int val;
-    __ASM volatile ("svc 0\n\tmov %0, r0" : "=r" (val));
+    __ASM volatile ("svc 0\n\tmov %0, r0" : "=r" (val)); // svc c'est une interruption,
+    													 // permet de passer du mode thread
+    													 // au mode handler et sert à générer une interruption système
 
     return val;
 }
@@ -18,7 +19,7 @@ int test_add(int a, int b)
 void* os_alloc(unsigned int req)
 {
 	void* ptr;
-	__ASM volatile ("svc 1\n\tmov %0, r0" : "=r" (ptr));
+	__ASM volatile ("svc 1\n\tmov %0, r0" : "=r" (ptr)); // ro contient la valeur de retour d'une fonction
 
 	return ptr;
 }
