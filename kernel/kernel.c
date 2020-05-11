@@ -224,10 +224,12 @@ int32_t sys_task_new(TaskCode func, uint32_t stacksize) // create new tasks
 		// save stack frame // -18 car sinon on sort de la pile
 		t->sp[17] = 0x01000000; // set reset in xPSR
 		t->sp[16] = (uint32_t)func;
+		// t->sp[15]= (uint32_t)task_kill;  // LR
 		t->sp[1] = 0xFFFFFFFD; // EXC_RETURN code to return in thread mode and use PSP
 		t->sp[0] = 0x1;		   // CONTROL thread mode privileged level => unprivileged
 		t->delay = 0;		   // waiting delay (for timeouts)
 		tsk_running = list_insert_tail(tsk_running, t); // on la fout dans la liste
+
 		return t->id;
 	}
 	return -1;
@@ -252,6 +254,18 @@ int32_t sys_task_kill()
 
     return 0;
 }
+
+/* int32_t sys_task_kill()
+{
+    Task* t;
+    tsk_running = list_remove_head(tsk_running, &t);
+    tsk_prev=NULL;
+    free(t);
+    tsk_running -> status = TASK_RUNNING;
+    sys_switch_ctx();
+
+    return 0;
+} */
 
 /* sys_task_id
  *   returns id of task

@@ -3,7 +3,7 @@
 
 #include "oslib.h"
 
-#define MAIN_EX5
+#define MAIN_EX8
 
 /*********************************************************************/
 #ifdef MAIN_TEST

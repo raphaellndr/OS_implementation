@@ -144,7 +144,7 @@ int readdir(int fd, DIR **dir);
 /* open
  *   returns a file descriptor for path name
  */
-int open(char *path, int flags);
+int open(char *path, unsigned int flags);
 
 /* close
  *   close the file descriptor
