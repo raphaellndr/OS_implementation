@@ -30,7 +30,7 @@ SVC_Handler:
 		.size		SVC_Handler, .-SVC_Handler
 
 /***************************************************************
- * PendSV_Handler
+ * PendSV_Handler // PRIORITE LA PLUS BASSE
  *  make the context switching
  ***************************************************************/
 		.section	.text.PendSV_Handler

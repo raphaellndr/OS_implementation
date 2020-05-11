@@ -70,7 +70,6 @@ int32_t svc_dispatch(uint32_t n, uint32_t args[]) // répartir les appels systè
 	case 10:
 		return sys_sem_v((Semaphore *)args[0]);
 	}
-
 	return -1;
 }
 
@@ -90,14 +89,60 @@ uint32_t sys_tick_cnt = 0;
  */
 void sys_tick_cb()
 {
+	Task* tsk = tsk_sleeping;
+
 	tsk_prev = tsk_running;
 	tsk_running->status = TASK_READY;
 
-	tsk_running = tsk_running->next;
-	tsk_running->status = TASK_RUNNING;
-
+	for(uint32_t i = 0; i < list_size(tsk_sleeping); i++)
+	{
+		if(!(tsk->delay-=SYS_TICK))
+		{
+			tsk_sleeping = list_remove_head(tsk_sleeping, &tsk);
+			tsk_running = list_insert_head(tsk_running, tsk);
+			tsk_running->status = TASK_RUNNING;
+		}
+	}
+	// if no task woken up, perform a standard context switch
+	if(tsk_prev == tsk_running)
+	{
+		tsk_running = tsk_running->next;
+		tsk_running->status = TASK_RUNNING;
+	}
 	sys_switch_ctx();
 }
+
+/* void sys_tick_cb()
+{
+    Task *t;
+
+    tsk_prev = tsk_running;
+    tsk_running -> status = TASK_READY;
+
+    int lsize = list_size(tsk_sleeping);
+
+
+    while( tsk_sleeping && lsize)
+    {
+        tsk_sleeping -> delay -= SYS_TICK;
+        if(tsk_sleeping-> delay <=0)
+        {
+            tsk_sleeping = list_remove_head(tsk_sleeping,&t);
+            tsk_running = list_insert_tail(tsk_running,t);
+            t -> status = TASK_READY;
+        }
+        if(tsk_sleeping) tsk_sleeping = tsk_sleeping -> next;
+        lsize--;
+    }
+
+    tsk_running = tsk_running->next;
+    tsk_running -> status = TASK_RUNNING;
+
+    sys_switch_ctx();
+
+
+//    list_display(tsk_running);
+} */
 
 void SysTick_Handler(void)
 {
@@ -120,7 +165,7 @@ void SysTick_Handler(void)
 int32_t sys_os_start()
 {
 	tsk_running->status = TASK_RUNNING;
-	sys_switch_ctx();
+	sys_switch_ctx(); // generer interruption systeme de type pendSV
 
 	// Reset BASEPRI
 	__set_BASEPRI(0);
@@ -167,22 +212,22 @@ int32_t sys_task_new(TaskCode func, uint32_t stacksize) // create new tasks
 	// get a stack with size multiple of 8 bytes (cf. page 13)
 	uint32_t size = stacksize > 96 ? 8 * (((stacksize - 1) / 8) + 1) : 96;
 
-	Task *t = (Task *)malloc(sizeof(Task) + size);
+	Task *t = (Task *)malloc(sizeof(Task) + size); // pointe sur le bas du bloc memoire
 
-	if (t)
+	if (t) // si bloc memoire alloué (ie mallock successful)
 	{
 		t->id = id++;					// identifier
 		t->status = TASK_READY;			// task status : running, ready, ...
-		t->splim = (uint32_t *)(t + 1); // stack limit is at t+1*sizeof(Task), but t is Task* so => t+1
+		t->splim = (uint32_t *)(t + 1);  // stack limit is at t+1*sizeof(Task), but t is Task* so => t+1
 		// t->splim = (uint32_t*)((uint8_t*)(t) + sizeof(Task));
 		t->sp = t->splim + (size >> 2) - 18; // get the top of the stack & divide size by 4 to get it in multiple of 32 bits chunks format
-		// save stack frame
-		t->sp[17] = 0x01000000; // use PSP and thread mode
+		// save stack frame // -18 car sinon on sort de la pile
+		t->sp[17] = 0x01000000; // set reset in xPSR
 		t->sp[16] = (uint32_t)func;
-		t->sp[1] = 0xFFFFFFFD; // EXC_RETURN code to return in thread mode
-		t->sp[0] = 0x1;		   // CONTROL thread mode priveleged level => unprivileged
+		t->sp[1] = 0xFFFFFFFD; // EXC_RETURN code to return in thread mode and use PSP
+		t->sp[0] = 0x1;		   // CONTROL thread mode privileged level => unprivileged
 		t->delay = 0;		   // waiting delay (for timeouts)
-		tsk_running = list_insert_tail(tsk_running, t);
+		tsk_running = list_insert_tail(tsk_running, t); // on la fout dans la liste
 		return t->id;
 	}
 	return -1;
@@ -193,9 +238,19 @@ int32_t sys_task_new(TaskCode func, uint32_t stacksize) // create new tasks
  */
 int32_t sys_task_kill()
 {
-	/* A COMPLETER */
+    Task* old_tsk_running = NULL;
+    /* replace tsk_running by next task and remove tsk_running from list
+     * but keep the deleted tsk_running in old_tsk_running
+     * to free it from memory
+     */
+    tsk_running = list_remove_head(tsk_running, &old_tsk_running);
+    tsk_running->status = TASK_RUNNING;
+    // free the removed task memory space
+    free(old_tsk_running);
+    // switch context to run tsk_running
+    sys_switch_ctx();
 
-	return 0;
+    return 0;
 }
 
 /* sys_task_id
@@ -223,9 +278,22 @@ int32_t sys_task_yield()
  */
 int32_t sys_task_wait(uint32_t ms)
 {
-	/* A COMPLETER */
-
-	return 0;
+    // if no token available
+    if(ms)
+    {
+        Task* tsk;
+        // update the current task to sleep
+        tsk_running->status = TASK_SLEEPING;
+        tsk_running->delay = ms;
+        tsk_prev = tsk_running;
+        // perform the list transfer
+        tsk_running = list_remove_head(tsk_running, &tsk);
+        tsk_sleeping = list_insert_tail(tsk_sleeping, tsk);
+        tsk_running -> status = TASK_RUNNING;
+        // update the new task to run
+        sys_switch_ctx();
+    }
+    return 0;
 }
 
 /*****************************************************************************
@@ -236,11 +304,17 @@ int32_t sys_task_wait(uint32_t ms)
  *   create a semaphore
  *   init    : initial value
  */
-Semaphore *sys_sem_new(int32_t init)
+Semaphore * sys_sem_new(int32_t init)
 {
-	/* A COMPLETER */
+    Semaphore* sem = (Semaphore*) malloc(sizeof(Semaphore));
 
-	return NULL;
+    if(sem)
+    {
+        sem->count = init;
+        sem->waiting = NULL;
+        return sem;
+    }
+    return sem;
 }
 
 /* sys_sem_p
@@ -248,8 +322,24 @@ Semaphore *sys_sem_new(int32_t init)
  */
 int32_t sys_sem_p(Semaphore *sem)
 {
-	/* A COMPLETER */
+	// enlever la tache courante de tskrunning
+	// et placer la tache dans sem waiting
+	Task* tsk;
+	if(sem)
+	{
+		sem->count--;
+		if(sem->count < 0)
+		{
+			tsk_running->status = TASK_WAITING;
+			tsk_prev = tsk_running;
 
+			tsk_running = list_remove_head(tsk_running, &tsk);
+			sem->waiting = list_insert_tail(sem->waiting, tsk);
+			tsk_running->status = TASK_RUNNING;
+			sys_switch_ctx();
+		}
+		return 0;
+	}
 	return -1;
 }
 
@@ -258,7 +348,22 @@ int32_t sys_sem_p(Semaphore *sem)
  */
 int32_t sys_sem_v(Semaphore *sem)
 {
-	/* A COMPLETER */
-
+	// tache en tete de sem waiting
+	// a placer dans tsk_running (en tete)
+	Task* tsk;
+	if(sem)
+	{
+		sem->count++;
+		if(sem->waiting)
+		{
+			tsk_running->status = TASK_READY;
+			tsk_prev = tsk_running;
+			sem->waiting = list_remove_head(sem->waiting, &tsk);
+			tsk_running = list_insert_head(tsk_running, tsk);
+			tsk_running->status = TASK_RUNNING;
+			sys_switch_ctx();
+		}
+		return 0;
+	}
 	return -1;
 }

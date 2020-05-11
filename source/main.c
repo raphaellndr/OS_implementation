@@ -3,7 +3,7 @@
 
 #include "oslib.h"
 
-#define MAIN_TEST
+#define MAIN_EX5
 
 /*********************************************************************/
 #ifdef MAIN_TEST
@@ -202,8 +202,8 @@ void tache1()
 
     while (1) {
     	state=!state;
-        leds(state<<2);			// toggle led
-        task_wait(200);
+    	leds(state<<2); // toggle led
+    	task_wait(200);
     }
 }
 
@@ -212,7 +212,6 @@ void tache2()
     while (1) {
     }
 }
-
 
 int main()
 {
