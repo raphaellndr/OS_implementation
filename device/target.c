@@ -21,15 +21,6 @@ static int dev_open_test(FileObject *f);
 static int dev_close_test(FileObject *f);
 static int dev_read_test(FileObject *f, void *buf, size_t len);
 
-Device dev_leds={
-    .name="leds",
-    .refcnt=0,
-    .init=dev_init_leds,
-    .open=dev_open_leds,
-    .close=dev_close_leds,
-    .write=dev_write_leds
-};
-
 Device dev_test={
     .name="test",
     .refcnt=0,
@@ -107,8 +98,9 @@ Device dev_leds={
     .name="leds",
     .refcnt=0,
     .init=dev_init_leds,
-    
-	/* A COMPLETER */
+    .open=dev_open_leds,
+    .close=dev_close_leds,
+    .write=dev_write_leds
 };
 
 static int dev_init_leds(Device *dev)

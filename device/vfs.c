@@ -105,7 +105,7 @@ Semaphore *vfs_mutex;
 /* open
  *   returns a file descriptor for path name
  */
-int open(char *path, int flags)
+int open(char *path, unsigned int flags)
 {
     int fd;
     // operations must be atomic
