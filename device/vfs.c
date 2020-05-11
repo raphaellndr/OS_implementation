@@ -108,7 +108,6 @@ Semaphore *vfs_mutex;
 int open(char *path, int flags)
 {
     int fd;
-
     // operations must be atomic
     sem_p(vfs_mutex);
     // check if we can open something
@@ -118,6 +117,7 @@ int open(char *path, int flags)
         if(opened_fds[fd] == NULL)
         {
             FileObject* f = (FileObject*) os_alloc(sizeof(FileObject));
+            memset(f, 0, sizeof(FileObject));
             // check if os_alloc succeeded
             if(f)
             {
@@ -217,6 +217,7 @@ int read(int fd, void *buf, size_t len)
     {
         // dev can't be null because open would have failed instead
         Device* dev = f->dev;
+        sem_v(vfs_mutex);
         if(dev->read) return dev->read(f, buf, len);
     }
     return -1;
@@ -234,6 +235,7 @@ int write(int fd, void *buf, size_t len)
         Device* dev = f->dev;
         if(dev->write)
         {
+        	sem_v(vfs_mutex);
         	return dev->write(f, buf, len);
         }
     }
